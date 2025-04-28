@@ -3,4 +3,4 @@ micronaut:
     watch:
       enabled: true
       paths:
-        - /Users/pavani.peri/Documents/education/convious_project/kestra-docker
+        - /Users/pavani.peri/Documents/education/convious_project/de_assignment/kestra-docker/flows

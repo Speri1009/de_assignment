@@ -1,0 +1,447 @@
+id: import-holidays
+namespace: holidayv2
+
+inputs:
+  - id: subdivisioncodes
+    type: FILE
+    required: true
+
+  - id: location_data
+    type: FILE
+    required: true
+
+tasks:
+  - id: subdivisioncodes_file
+    type: io.kestra.plugin.scripts.shell.Commands
+    commands:
+      - mv subdivisioncodes.csv output.csv
+    inputFiles:
+      subdivisioncodes.csv: "{{ inputs['subdivisioncodes'] }}"
+    outputFiles:
+      - "*.csv"
+
+  - id: location_data_file
+    type: io.kestra.plugin.scripts.shell.Commands
+    commands:
+      - mv location_data.csv output.csv
+    inputFiles:
+      location_data.csv: "{{ inputs['location_data'] }}"
+    outputFiles:
+      - "*.csv"
+
+  - id: fetch_countries
+    type: io.kestra.plugin.scripts.python.Script
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    outputFiles:
+      - countries.csv
+    beforeCommands:
+      - pip install requests
+      - pip install pandas
+    script: |
+      import requests
+      import pandas as pd
+      url = "https://holidayapi.com/v1/countries"
+      params = {
+        "key": "c399fea4-30d3-494f-94ca-da317f853727"
+                } 
+      response = requests.get(url, params=params)
+      if response.status_code == 200:
+        # Parse the JSON response
+        data = response.json()
+
+        # Extract the 'countries' dictionary from the response
+        countries_data = data.get("countries", {})
+        # Convert the 'countries' dictionary into a list of dictionaries
+        countries_list = []
+
+        # Loop through each country data
+        for country in countries_data:
+            country_info = {
+                "Country Code": country.get("code"),
+                "Country Name": country.get("name"),
+                "Alpha-2 Code": country.get("codes", {}).get("alpha-2"),
+                "Alpha-3 Code": country.get("codes", {}).get("alpha-3"),
+                "Numeric Code": country.get("codes", {}).get("numeric"),
+                "Languages": ", ".join(country.get("languages", [])),
+                "Currencies": ", ".join([currency.get("alpha") for currency in country.get("currencies", [])]),
+                "Flag URL": country.get("flag"),
+                "Weekend Days": ", ".join([weekend_day.get("name") for weekend_day in country.get("weekend", [])])
+            }
+
+            # Flatten the subdivisions (they are a list of dictionaries)
+            subdivisions = ", ".join([subdivision.get("name") for subdivision in country.get("subdivisions", [])])
+            country_info["Subdivisions"] = subdivisions
+
+            # Append the cleaned-up information to the list
+            countries_list.append(country_info)
+
+        # Create a pandas DataFrame from the cleaned list of dictionaries
+        countries = pd.DataFrame(countries_list)
+
+        # Optionally, print the DataFrame
+        countries.to_csv('countries.csv', index=False)
+        print(countries.head(5))
+
+      else:
+          raise Exception(f"Failed to fetch countries: {response.status_code}")
+
+  - id: load_countries
+    type: io.kestra.plugin.scripts.python.Script
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    beforeCommands:
+      - pip install psycopg2-binary
+    warningOnStdErr: false
+    script: |
+      import pandas as pd
+      import psycopg2
+
+      conn = psycopg2.connect(
+          host="postgres",
+          database="kestra",
+          user="kestra",
+          password="k3str4"
+      )
+      cursor = conn.cursor()
+
+      # Create table if not exists
+      create_table_query = """
+      CREATE TABLE IF NOT EXISTS countries 
+      (
+        country_code TEXT,
+        country_name TEXT,
+        alpha_2_code TEXT,
+        alpha_3_code TEXT,
+        numeric_code TEXT,
+        languages TEXT,
+        currencies TEXT,
+        flag_url TEXT,
+        weekend_days TEXT
+        );
+      """
+      cursor.execute(create_table_query)
+      conn.commit()
+
+      # Truncate the table 
+      cursor.execute("TRUNCATE TABLE countries")
+      conn.commit()
+
+      country_data = pd.read_csv('{{ outputs.fetch_countries.outputFiles['countries.csv'] }}')
+      print(country_data.head(5))
+      for index, row in country_data.iterrows():
+          cursor.execute(
+            """
+            INSERT INTO countries 
+            (
+              country_code, 
+              country_name, 
+              alpha_2_code, 
+              alpha_3_code, 
+              numeric_code, 
+              languages, 
+              currencies, 
+              flag_url,
+              weekend_days
+              ) 
+              VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (
+            row['Country Code'],
+            row['Country Name'],
+            row['Alpha-2 Code'],
+            row['Alpha-3 Code'],
+            row['Numeric Code'],
+            row['Languages'],
+            row['Currencies'],
+            row['Flag URL'],
+            row['Weekend Days']
+        )
+        )
+
+      conn.commit()   
+      cursor.execute("SELECT COUNT(*) FROM countries")
+      row_count = cursor.fetchone()[0]
+      print(f"Inserted {row_count} rows into the countries table.")
+
+      cursor.close()
+      conn.close()
+
+  - id: fetch_subdivisions
+    type: io.kestra.plugin.scripts.python.Script
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    outputFiles:
+      - subdivisions.csv
+    inputFiles:
+      subdivisioncodes.csv: "{{ inputs['subdivisioncodes'] }}"
+    script: |
+      import requests
+      import pandas as pd
+
+      subdivisioncodes = ('{{ outputs.subdivisioncodes_file.outputFiles['subdivisioncodes.csv'] }}')
+      subdivisioncodes_df = pd.read_csv(subdivisioncodes)
+      print(subdivisioncodes_df)
+      url = "https://holidayapi.com/v1/countries"
+      params = {
+        "key": "c399fea4-30d3-494f-94ca-da317f853727"
+                } 
+      response = requests.get(url, params=params)
+      if response.status_code == 200:
+        # Parse the JSON response
+        data = response.json()
+
+        # Extract the 'countries' dictionary from the response
+        countries_data = data.get("countries", {})
+        # Convert the 'countries' dictionary into a list of dictionaries
+        subdivisions_list = []
+
+        # Loop through each country data
+        for country in countries_data:
+          for subdivision in country.get("subdivisions", []):
+            subdivisions_list.append({
+          "Country_Code": country.get("code") ,
+          "Subdivision": subdivision.get("name")
+          })
+
+
+
+        # Create a pandas DataFrame from the cleaned list of dictionaries
+        subdivisions = pd.DataFrame(subdivisions_list)
+
+        merged_subdivisions = pd.merge(
+                    subdivisions,
+                    subdivisioncodes_df,
+                    left_on=['Country_Code', 'Subdivision'],
+                    right_on=['country_code', 'subdivision_name'],
+                    how='left'
+                  )
+        merged_subdivisions = merged_subdivisions[['Country_Code', 'Subdivision', 'code']].rename(columns={'code': 'Subdivision_Code'})
+
+        # Optionally, print the DataFrame
+        merged_subdivisions.to_csv('subdivisions.csv', index=False)
+        print(merged_subdivisions.head(5))
+
+      else:
+          raise Exception(f"Failed to fetch countries: {response.status_code}")
+
+  - id: load_subdivisions
+    type: io.kestra.plugin.scripts.python.Script
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    warningOnStdErr: false
+    script: |
+      import pandas as pd
+      import psycopg2
+      conn = psycopg2.connect(
+          host="postgres",
+          database="kestra",
+          user="kestra",
+          password="k3str4"
+      )
+      cursor = conn.cursor()
+      # Create table if not exists
+      create_table_query = """
+      CREATE TABLE IF NOT EXISTS subdivisions 
+      (
+        Country_Code TEXT,
+        Subdivision TEXT,
+        Subdivision_Code TEXT
+        );
+      """
+      cursor.execute(create_table_query)
+      conn.commit()
+      # Truncate the table 
+      cursor.execute("TRUNCATE TABLE subdivisions")
+      conn.commit()
+      subdivisions_data = pd.read_csv('{{ outputs.fetch_subdivisions.outputFiles['subdivisions.csv'] }}')
+      print(subdivisions_data.head(5))
+      for index, row in subdivisions_data.iterrows():
+          cursor.execute(
+            """
+            INSERT INTO subdivisions 
+            (
+              Country_Code, 
+              Subdivision, 
+              Subdivision_Code
+              ) 
+              VALUES (%s, %s, %s)
+        """,
+        (
+            row['Country_Code'],
+            row['Subdivision'],
+            row['Subdivision_Code']
+        )
+        )
+      conn.commit()   
+      cursor.execute("SELECT COUNT(*) FROM subdivisions")
+      row_count = cursor.fetchone()[0]
+      print(f"Inserted {row_count} rows into the subdivisions table.")
+      cursor.close()
+      conn.close()
+
+  - id: fetch_holidays
+    type: io.kestra.plugin.scripts.python.Script
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    outputFiles:
+      - holidays_2024.csv
+    script: |
+      import requests                                                                                                 
+      import pandas as pd                                                                                             
+
+      # Define the API URL and parameters                                                                             
+      url = "https://holidayapi.com/v1/holidays"                                                                      
+      country_data = pd.read_csv('{{ outputs.fetch_countries.outputFiles['countries.csv'] }}')                                                                                        
+      countries =  country_data['Country Code'].tolist()                                                              
+      # print(countries)                                                                                              
+      all_holidays_df = pd.DataFrame()                                                                                
+      for country_code in countries:                                                                                  
+          # print(f"Fetching holidays for: {country_code}")                                                           
+          params = {                                                                                                  
+              "key": "c399fea4-30d3-494f-94ca-da317f853727",  # Your API key                                          
+              "country": country_code,  # Country code for Netherlands                                                
+              "year": 2024,  # The year for holidays                                                                  
+              "pretty": "true",  # To get a more readable response                                                    
+          }                                                                                                           
+
+          # Make the API request                                                                                      
+          response = requests.get(url, params=params)                                                                 
+          # print(response)                                                                                           
+          # Check if the request was successful                                                                       
+          if response.status_code == 200:                                                                             
+              # Parse the JSON response                                                                               
+              data = response.json()                                                                                  
+
+              # Create a list of dictionaries to use with pandas DataFrame                                            
+              holidays_data = []                                                                                      
+              for h in data.get("holidays", []):                                                                      
+                  holiday = {"Date": h["date"], "Name": h["name"], "Public": h["public"]}                             
+                  holidays_data.append(holiday)                                                                       
+
+              # Create a pandas DataFrame from the list of dictionaries                                               
+              holidays_data_df = pd.DataFrame(holidays_data)                                                                        
+              holidays_data_df['country'] =  country_code                                                                           
+              all_holidays_df = pd.concat([all_holidays_df, holidays_data_df], ignore_index=True)                                                                                                                                              
+          else:                                                                                                       
+              print(f"Failed to fetch data: {response.status_code}")
+      all_holidays_df.to_csv("holidays_2024.csv", index=False)    
+      print(all_holidays_df.shape)      
+      print(all_holidays_df.head(100))
+
+  - id: load_holidays
+    type: io.kestra.plugin.scripts.python.Script
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    warningOnStdErr: false
+    script: |
+      import pandas as pd
+      import psycopg2
+      conn = psycopg2.connect(
+          host="postgres",
+          database="kestra",
+          user="kestra",
+          password="k3str4"
+      )
+      cursor = conn.cursor()
+      # Create table if not exists
+      create_table_query = """
+      CREATE TABLE IF NOT EXISTS holidays_2024 
+      (
+        Date DATE,
+        Holiday_Name TEXT,
+        Public BOOL,
+        country TEXT
+        );
+      """
+      cursor.execute(create_table_query)
+      conn.commit()
+      # Truncate the table 
+      cursor.execute("TRUNCATE TABLE holidays_2024")
+      conn.commit()
+      holidays_2024_data = pd.read_csv('{{ outputs.fetch_holidays.outputFiles['holidays_2024.csv'] }}')
+      print(holidays_2024_data.head(5))
+      for index, row in holidays_2024_data.iterrows():
+          cursor.execute(
+            """
+            INSERT INTO holidays_2024 
+            (
+              Date, 
+              Holiday_Name, 
+              Public,
+              country
+              ) 
+              VALUES (%s, %s, %s, %s)
+        """,
+        (
+            row['Date'],
+            row['Name'],
+            row['Public'],
+            row['country']
+        )
+        )
+      conn.commit()   
+      cursor.execute("SELECT COUNT(*) FROM holidays_2024")
+      row_count = cursor.fetchone()[0]
+      print(f"Inserted {row_count} rows into the holidays_2024 table.")
+      cursor.close()
+      conn.close()
+
+  - id: load_location_data
+    type: io.kestra.plugin.scripts.python.Script
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    inputFiles:
+      location_data.csv: "{{ inputs['location_data'] }}"
+    script: |
+      import requests
+      import pandas as pd
+      import psycopg2
+
+      location_data = ('{{ outputs.location_data_file.outputFiles['location_data.csv'] }}')
+      location_data_df = pd.read_csv(location_data)
+      print(location_data_df)
+      conn = psycopg2.connect(
+          host="postgres",
+          database="kestra",
+          user="kestra",
+          password="k3str4"
+      )
+      cursor = conn.cursor()
+      # Create table if not exists
+      create_table_query = """
+      CREATE TABLE IF NOT EXISTS location_data 
+      (
+        location_id TEXT,
+        country_code TEXT,
+        subdivision_code TEXT
+        );
+      """
+      cursor.execute(create_table_query)
+      conn.commit()
+      # Truncate the table 
+      cursor.execute("TRUNCATE TABLE location_data")
+      conn.commit()
+      for index, row in location_data_df.iterrows():
+          cursor.execute(
+            """
+            INSERT INTO location_data 
+            (
+              location_id, 
+              country_code,
+              subdivision_code 
+              ) 
+              VALUES (%s, %s, %s)
+        """,
+        (
+            row['location_id'],
+            row['country_code'],
+            row['subdivision_code']
+        )
+        )
+      conn.commit()   
+      cursor.execute("SELECT COUNT(*) FROM location_data")
+      row_count = cursor.fetchone()[0]
+      print(f"Inserted {row_count} rows into the location_data table.")
+      cursor.close()
+      conn.close()
