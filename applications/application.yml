@@ -1,0 +1,6 @@
+micronaut:
+  io:
+    watch:
+      enabled: true
+      paths:
+        - /Users/pavani.peri/Documents/education/convious_project/
