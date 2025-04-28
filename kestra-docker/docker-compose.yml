@@ -36,8 +36,8 @@ services:
       - kestra-data:/app/storage
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp/kestra-wd:/tmp/kestra-wd
-      - /Users/pavani.peri/Documents/education/convious_project/kestra-docker/flows:/app/flows
-      - /Users/pavani.peri/Documents/education/convious_project/kestra-docker/applications/application.yml:/app/config/application.yml 
+      - /Users/pavani.peri/Documents/education/convious_project/de_assignment/kestra-docker/flows:/app/flows
+      - /Users/pavani.peri/Documents/education/convious_project/de_assignment/kestra-docker/applications/application.yml:/app/config/application.yml 
     environment:
       KESTRA_CONFIGURATION: |
         datasources:
