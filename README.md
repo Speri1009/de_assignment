@@ -40,4 +40,4 @@ WHERE location_id = 'ab5df8c0-dfe7-4ca3-a9e4-c77f93e551a7'
 
 ## Architecture Diagram
 
-![Location_datamart Flow Diagram](flow.png)
+![Location_datamart Flow Diagram](kestra-docker/flow.png)
