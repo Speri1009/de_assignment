@@ -1,13 +1,13 @@
 # Holidays and Location mapping
 
 This project fetches countries and holidays data from the website: https://holidayapi.com/
-Kestra and postgres is used for this project
-Each flow in Kestra is automated to run based on the schedule.
+It uses **Kestra** for orchestration and **PostgreSQL** for storage.  
+Each Kestra flow is scheduled and automated.
 
 ## Features
 
-- The ingestion flows ingest all the data into mutiple tables
-- location_datamart flow inserts the final table that maps holidays with locations provided
+- Ingests data into multiple tables using scheduled flows.
+- `location_datamart` flow creates a final table that maps holidays to the specified locations.
 
 ## Installation
 
@@ -21,9 +21,11 @@ colima start
 docker-compose pull
 docker-compose up
 docker-compose down
+```
+
+Services:
 Kestra: http://localhost:8080
 pgadmin: http://localhost:8082
-```
 
 ## Location_datamart
 
