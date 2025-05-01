@@ -1,0 +1,248 @@
+id: ingest-country-subdivision
+namespace: ingest-country-subdivision
+description: |
+  This flow is to ingest countries and input files: subdivision codes
+  into public schema.
+
+variables:
+  db_host: "postgres"
+  db_database: "kestra"
+  db_user: "kestra"
+  db_password: "k3str4"
+
+inputs:
+  - id: subdivisioncodes
+    type: FILE
+    required: true
+
+pluginDefaults:
+  - type: io.kestra.plugin.jdbc.postgresql
+    values:
+      url: jdbc:postgresql://postgres:5432/kestra
+      username: kestra
+      password: k3str4
+
+triggers:
+  - id: hourly
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "@hourly"
+
+tasks:
+  - id: subdivisioncodes_file
+    type: io.kestra.plugin.scripts.shell.Commands
+    commands:
+      - mv subdivisioncodes.csv output.csv
+    inputFiles:
+      subdivisioncodes.csv: "{{ inputs['subdivisioncodes'] }}"
+    outputFiles:
+      - "*.csv"
+
+  - id: fetch_countries
+    type: io.kestra.plugin.scripts.python.Script
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    outputFiles:
+      - countries.csv
+    beforeCommands:
+      - pip install requests
+      - pip install pandas
+    description: This task is to fetch countries data from holidayapi and save as output csv file in kestra
+    script: |
+      import requests
+      import pandas as pd
+      url = "https://holidayapi.com/v1/countries"
+      params = {
+        "key": "c399fea4-30d3-494f-94ca-da317f853727"
+                } 
+      response = requests.get(url, params=params)
+      def get_countries ():
+        if response.status_code == 200:
+          # Parse the JSON response
+          data = response.json()
+
+          # Extract the 'countries' dictionary from the response
+          countries_data = data.get("countries", {})
+          # Convert the 'countries' dictionary into a list of dictionaries
+          countries_list = []
+
+          # Loop through each country data
+          for country in countries_data:
+              country_info = {
+                  "Country Code": country.get("code"),
+                  "Country Name": country.get("name"),
+                  "Alpha-2 Code": country.get("codes", {}).get("alpha-2"),
+                  "Alpha-3 Code": country.get("codes", {}).get("alpha-3"),
+                  "Numeric Code": country.get("codes", {}).get("numeric"),
+                  "Languages": ", ".join(country.get("languages", [])),
+                  "Currencies": ", ".join([currency.get("alpha") for currency in country.get("currencies", [])]),
+                  "Flag URL": country.get("flag"),
+                  "Weekend Days": ", ".join([weekend_day.get("name") for weekend_day in country.get("weekend", [])])
+              }
+
+              # Flatten the subdivisions (they are a list of dictionaries)
+              subdivisions = ", ".join([subdivision.get("name") for subdivision in country.get("subdivisions", [])])
+              country_info["Subdivisions"] = subdivisions
+
+              # Append the cleaned-up information to the list
+              countries_list.append(country_info)
+
+          # Create a pandas DataFrame from the cleaned list of dictionaries
+          countries = pd.DataFrame(countries_list)
+          countries.to_csv('countries.csv', index=False)
+          print("Inserted Countries Data into ketsra")
+
+        else:
+            raise Exception(f"Failed to fetch countries: {response.status_code}")
+      get_countries()
+
+  - id: create_countries_table
+    type: io.kestra.plugin.jdbc.postgresql.Queries
+    sql: |
+      CREATE TABLE IF NOT EXISTS countries (
+        country_code TEXT,
+        country_name TEXT,
+        alpha_2_code TEXT,
+        alpha_3_code TEXT,
+        numeric_code TEXT,
+        languages TEXT,
+        currencies TEXT,
+        flag_url TEXT,
+        weekend_days TEXT
+      );
+
+  - id: truncate_countries_table
+    type: io.kestra.plugin.jdbc.postgresql.Queries
+    sql: |
+      TRUNCATE TABLE countries;
+
+  - id: load_countries
+    type: io.kestra.plugin.scripts.python.Script
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    beforeCommands:
+      - pip install psycopg2-binary
+    warningOnStdErr: false
+    script: |
+      import pandas as pd
+      import psycopg2
+      conn = psycopg2.connect(
+        host="{{ vars.db_host }}",
+        database="{{ vars.db_database }}",
+        user="{{ vars.db_user }}",
+        password="{{ vars.db_password }}"
+      )
+      cursor = conn.cursor()
+      country_data = pd.read_csv('{{ outputs.fetch_countries.outputFiles['countries.csv'] }}')
+      print(country_data.head(5))
+      for index, row in country_data.iterrows():
+          cursor.execute(
+            """
+            INSERT INTO countries 
+            (
+              country_code, 
+              country_name, 
+              alpha_2_code, 
+              alpha_3_code, 
+              numeric_code, 
+              languages, 
+              currencies, 
+              flag_url,
+              weekend_days
+              ) 
+              VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (
+            row['Country Code'],
+            row['Country Name'],
+            row['Alpha-2 Code'],
+            row['Alpha-3 Code'],
+            row['Numeric Code'],
+            row['Languages'],
+            row['Currencies'],
+            row['Flag URL'],
+            row['Weekend Days']
+        )
+        )
+
+      conn.commit()   
+      cursor.execute("SELECT COUNT(*) FROM countries")
+      row_count = cursor.fetchone()[0]
+      print(f"Inserted {row_count} rows into the countries table.")
+
+      cursor.close()
+      conn.close()
+
+  - id: fetch_subdivisions
+    type: io.kestra.plugin.scripts.python.Script
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    outputFiles:
+      - subdivisions.csv
+    inputFiles:
+      subdivisioncodes.csv: "{{ inputs['subdivisioncodes'] }}"
+    description: This task is to merge subdivisons codes data and subdivison names from countries
+    script: |
+      import requests
+      import pandas as pd
+      subdivisioncodes = ('{{ outputs.subdivisioncodes_file.outputFiles['subdivisioncodes.csv'] }}')
+      subdivisioncodes_df = pd.read_csv(subdivisioncodes)
+      print(subdivisioncodes_df)
+      url = "https://holidayapi.com/v1/countries"
+      params = {
+        "key": "c399fea4-30d3-494f-94ca-da317f853727"
+                } 
+      response = requests.get(url, params=params)
+      if response.status_code == 200:
+        # Parse the JSON response
+        data = response.json()
+
+        # Extract the 'countries' dictionary from the response
+        countries_data = data.get("countries", {})
+        # Convert the 'countries' dictionary into a list of dictionaries
+        subdivisions_list = []
+
+        # Loop through each country data
+        for country in countries_data:
+          for subdivision in country.get("subdivisions", []):
+            subdivisions_list.append({
+          "Country_Code": country.get("code") ,
+          "Subdivision": subdivision.get("name")
+          })
+
+        subdivisions = pd.DataFrame(subdivisions_list)
+
+        merged_subdivisions = pd.merge(
+                    subdivisions,
+                    subdivisioncodes_df,
+                    left_on=['Country_Code', 'Subdivision'],
+                    right_on=['country_code', 'subdivision_name'],
+                    how='left'
+                  )
+        merged_subdivisions = merged_subdivisions[['Country_Code', 'Subdivision', 'code']].rename(columns={'code': 'Subdivision_Code'})
+
+        merged_subdivisions.to_csv('subdivisions.csv', index=False)
+        print("Inserted Subdivisions Data into ketsra")
+
+      else:
+          raise Exception(f"Failed to fetch countries: {response.status_code}")
+
+  - id: create_subdivison_table
+    type: io.kestra.plugin.jdbc.postgresql.Queries
+    sql: |
+      CREATE TABLE IF NOT EXISTS subdivisions 
+      (
+        Country_Code TEXT,
+        Subdivision TEXT,
+        Subdivision_Code TEXT
+        );
+  - id: truncate_subdivison_table
+    type: io.kestra.plugin.jdbc.postgresql.Queries
+    sql: |
+      TRUNCATE TABLE subdivisions;
+
+  - id: load_subdivison_table
+    type: io.kestra.plugin.jdbc.postgresql.CopyIn
+    format: CSV
+    from: "{{ outputs.fetch_subdivisions.outputFiles['subdivisions.csv'] }}"
+    table: subdivisions
+    columns: [Country_Code, Subdivision, Subdivision_Code]

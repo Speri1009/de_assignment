@@ -1,0 +1,102 @@
+id: location_datamart_incremental
+namespace: location_datamart_inc
+description:
+
+variables:
+  db_host: "postgres"
+  db_database: "kestra"
+  db_user: "kestra"
+  db_password: "k3str4"
+
+triggers:
+  - id: hourly
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 0/2 * * *"
+
+tasks:
+  - id: upsert_holidays_to_datamart
+    type: io.kestra.plugin.scripts.python.Script
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    description: This task will upsert holidays into the locat_datamart table using SQL inside a Python script.
+    beforeCommands:
+      - pip install psycopg2-binary
+    warningOnStdErr: false
+    script: |
+      import psycopg2
+      from psycopg2 import sql
+
+      # Database connection details
+      conn = psycopg2.connect(
+          host="{{ vars.db_host }}",
+          database="{{ vars.db_database }}",
+          user="{{ vars.db_user }}",
+          password="{{ vars.db_password }}"
+        )
+
+      # Create a cursor object to execute queries
+      cur = conn.cursor()
+
+      # Define the SQL query
+      create_location_datamart = """
+        CREATE TABLE IF NOT EXISTS locat_datamart 
+        (
+          id TEXT PRIMARY KEY,
+          location_id TEXT,
+          country_code TEXT,
+          subdivision TEXT,
+          subdivision_code TEXT,
+          date DATE,
+          holiday_name TEXT,
+          public BOOLEAN
+        );
+      """
+      cur.execute(create_location_datamart)
+      conn.commit()
+
+      upsert_sql = """
+            INSERT INTO locat_datamart 
+        (
+          id,
+          location_id,
+          country_code,
+          subdivision,
+          subdivision_code,
+          date,
+          holiday_name,
+          public
+      )
+      WITH location_details AS (
+          SELECT 
+              s.country_code,
+              s.subdivision,
+              s.subdivision_code,
+              l.location_id
+          FROM public.subdivisions s
+          INNER JOIN public.location_data l 
+              ON s.country_code = l.country_code 
+              AND s.subdivision_code = l.subdivision_code
+      )
+      SELECT 
+          md5(l.location_id || h.date::text) AS id,
+          l.location_id,
+          l.country_code,
+          l.subdivision,
+          l.subdivision_code,
+          h.date,
+          h.holiday_name,
+          h.public
+      FROM location_details l
+      INNER JOIN public.holidays_2024 h
+          ON l.country_code = h.country
+      WHERE h.date >= CURRENT_DATE - INTERVAL '1 year'
+      ON CONFLICT (id) DO UPDATE
+      SET 
+          holiday_name = EXCLUDED.holiday_name,
+          public = EXCLUDED.public;
+      """
+      cur.execute(upsert_sql)
+      conn.commit()
+      print("Upsert completed successfully.")
+      cur.close()
+      conn.close()

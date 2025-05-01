@@ -1,0 +1,54 @@
+id: ingest-location-data
+namespace: ingest-location-data
+
+description: |
+  This flow is to ingest location_data input file into public schema.
+
+inputs:
+  - id: location_data
+    type: FILE
+    required: true
+
+pluginDefaults:
+  - type: io.kestra.plugin.jdbc.postgresql
+    values:
+      url: jdbc:postgresql://postgres:5432/kestra
+      username: kestra
+      password: k3str4
+
+triggers:
+  - id: hourly
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "@hourly"
+
+tasks:
+  - id: location_data_file
+    type: io.kestra.plugin.scripts.shell.Commands
+    commands:
+      - mv location_data.csv output.csv
+    inputFiles:
+      location_data.csv: "{{ inputs['location_data'] }}"
+    outputFiles:
+      - "*.csv"
+
+  - id: create_location_data_table
+    type: io.kestra.plugin.jdbc.postgresql.Queries
+    sql: |
+      CREATE TABLE IF NOT EXISTS location_data
+      (
+      location_id TEXT,
+      country_code TEXT,
+      subdivision_code TEXT
+      );
+
+  - id: truncate_location_data_table
+    type: io.kestra.plugin.jdbc.postgresql.Queries
+    sql: |
+      TRUNCATE TABLE location_data;
+
+  - id: load_location_data_table
+    type: io.kestra.plugin.jdbc.postgresql.CopyIn
+    format: CSV
+    from: "{{ outputs.location_data_file.outputFiles['location_data.csv'] }}"
+    table: location_data
+    columns: [location_id, country_code, subdivision_code]
