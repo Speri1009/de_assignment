@@ -61,21 +61,23 @@ Each stage generates one or more events captured through the backend and streame
 
 ## 4. Core Tables and Logical Fields
 
+All the tables can be partintion by partition date/ timestamp
+
 ### `User`
 
 - `user_id`, `email`, `country`, `is_active`, `signup_date`
 
 ### `Session`
 
-- `session_id`, `user_id`, `start_time`, `end_time`, `device`, `geo_location`
+- `session_id`, `user_id`, `session_start_time`, `session_end_time`, `device_type`, `geo_location`
 
 ### `Click`
 
-- `click_id`, `session_id`, `timestamp`, `element_clicked`, `page`
+- `click_id`, `session_id`, `click_timestamp`, `element_clicked`, `page`
 
 ### `View`
 
-- `view_id`, `session_id`, `timestamp`, `page_type`, `referer`
+- `view_id`, `session_id`, `view_timestamp`, `page_type`, `landing_page`, `is_referral`
 
 ### `Event`
 
@@ -83,7 +85,7 @@ Each stage generates one or more events captured through the backend and streame
 
 ### `Event_Response`
 
-- `response_id`, `event_id`, `response_type`, `sent_at`, `status`
+- `response_id`, `event_id`, `response_type`, `sent_email`,`sent_phone_number`, `status`
 
 ### `User_Activity`
 
@@ -93,12 +95,13 @@ Each stage generates one or more events captured through the backend and streame
 
 ## 5. Data Quality & Refresh Logic
 
-| Layer  | Refresh Strategy         | Notes                                  |
-| ------ | ------------------------ | -------------------------------------- |
-| Raw    | Streaming / Batch Append | Immutable, used for reprocessing       |
-| Bronze | Incremental w/ Backfill  | Supports deduplication, schema changes |
-| Silver | Merge / Upsert           | Business logic + late-arrival handling |
-| Gold   | Truncate & Load          | Snapshot, full aggregation daily       |
+| Layer  | Refresh Strategy         | Notes                                   |
+| ------ | ------------------------ | --------------------------------------- |
+| Raw    | Streaming / Batch Append | Immutable, used for reprocessing        |
+| Bronze | Incremental w/ Backfill  | Supports deduplication, schema changes  |
+| Silver | Merge / Upsert           | Business logic + late-arrival handling  |
+| Gold   | Truncate & Load          | latest Snapshot,full aggregation daily, |
+|        |                          | Full Snapshot                           |
 
 ---
 
