@@ -133,7 +133,6 @@ tasks:
       )
       cursor = conn.cursor()
       country_data = pd.read_csv('{{ outputs.fetch_countries.outputFiles['countries.csv'] }}')
-      print(country_data.head(5))
       for index, row in country_data.iterrows():
           cursor.execute(
             """
@@ -186,7 +185,6 @@ tasks:
       import pandas as pd
       subdivisioncodes = ('{{ outputs.subdivisioncodes_file.outputFiles['subdivisioncodes.csv'] }}')
       subdivisioncodes_df = pd.read_csv(subdivisioncodes)
-      print(subdivisioncodes_df)
       url = "https://holidayapi.com/v1/countries"
       params = {
         "key": "c399fea4-30d3-494f-94ca-da317f853727"
@@ -196,7 +194,7 @@ tasks:
         # Parse the JSON response
         data = response.json()
 
-        # Extract the 'countries' dictionary from the response
+        # Extract the 'countries'
         countries_data = data.get("countries", {})
         # Convert the 'countries' dictionary into a list of dictionaries
         subdivisions_list = []
