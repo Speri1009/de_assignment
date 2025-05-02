@@ -95,14 +95,12 @@ All the tables can be partintion by partition date/ timestamp
 
 ## 5. Data Quality & Refresh Logic
 
-| Layer  | Refresh Strategy         | Notes                                   |
-| ------ | ------------------------ | --------------------------------------- |
-| Raw    | Streaming / Batch Append | Immutable, used for reprocessing        |
-| Bronze | Incremental-overwrite    |
-|        | / Backfill               | Supports deduplication, schema changes  |
-| Silver | Incremental-overwrite    | Business logic + late-arrival handling  |
-| Gold   | Truncate & Load          | latest Snapshot,full aggregation daily, |
-|        |                          | Full Snapshot                           |
+| Layer  | Refresh Strategy                | Notes                                                |
+| ------ | ------------------------------- | ---------------------------------------------------- |
+| Raw    | Streaming / Batch Append        | Immutable, used for reprocessing                     |
+| Bronze | Incremental-overwrite/ Backfill | Supports deduplication, schema changes               |
+| Silver | Incremental-overwrite           | Business logic + late-arrival handling               |
+| Gold   | Truncate & Load                 | latest Snapshot,full aggregation daily,Full Snapshot |
 
 ---
 
