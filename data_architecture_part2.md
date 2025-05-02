@@ -98,8 +98,9 @@ All the tables can be partintion by partition date/ timestamp
 | Layer  | Refresh Strategy         | Notes                                   |
 | ------ | ------------------------ | --------------------------------------- |
 | Raw    | Streaming / Batch Append | Immutable, used for reprocessing        |
-| Bronze | Incremental w/ Backfill  | Supports deduplication, schema changes  |
-| Silver | Merge / Upsert           | Business logic + late-arrival handling  |
+| Bronze | Incremental-overwrite    |
+|        | / Backfill               | Supports deduplication, schema changes  |
+| Silver | Incremental-overwrite    | Business logic + late-arrival handling  |
 | Gold   | Truncate & Load          | latest Snapshot,full aggregation daily, |
 |        |                          | Full Snapshot                           |
 
