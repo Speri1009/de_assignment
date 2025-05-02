@@ -3,6 +3,8 @@
 Customer funnel starts from when the customer reaches the landing page untill end of the journey
 ![Customer Funnel](customer_funnel.png)
 
+Browse = View
+
 ## 1. Overview
 
 This architecture supports tracking user behavior through a funnel of interactions—from browsing to barcode scanning. The design is built on a layered data lakehouse model.
@@ -11,7 +13,7 @@ This architecture supports tracking user behavior through a funnel of interactio
 
 ## 2. Funnel Events Tracked
 
-- **Browse**
+- **View**
 - **Article Added to Cart**
 - **Payment Successful**
 - **Email Confirmation**
@@ -21,7 +23,7 @@ Each stage generates one or more events captured through the backend and streame
 
 ---
 
-## 3. Layered Architecture (Medallion Pattern)
+## 3. Architecture Proposal
 
 ### 🔹 **Data Lake (Raw / Ingestion Layer)**
 
@@ -49,7 +51,7 @@ Each stage generates one or more events captured through the backend and streame
 
 - Fact/dimension models for analytics
 - Aggregated & formatted and in line with definitions.
-- definitions to adhere to like unique user, unique session, unique event, different eventtypes
+- definitions to adhere to like unique user, unique session, unique event, different event types
 - Examples:
   - `fact_user_activity`
   - `dim_user`
@@ -104,17 +106,26 @@ All the tables can be partintion by partition date/ timestamp
 
 ---
 
-## 6. Use Cases Enabled
+## 6. Use Cases Sample
 
-- Funnel analysis (drop-off rates per stage)
-- Conversion tracking
-- Retargeting (e.g., users who added article to cart but didn’t pay)
-- A/B testing interaction with one feature vrs other
-- Operational alerts (e.g., email failed to send)
+- **Funnel analysis**
+  Analyze the bounce rates per event stage
+- **Conversion Rates**
+  How many views converted to adding article to cart
+  How many article to cart events converted to payment success
+  How many success barecode scans
+- **Retargeting**
+  When to target an inactive customer
+  Which customer segment should recive which type of campaigns
+- **A/B testing**
+  Newly launched payment method vrs old payment method
+- **Operational alerts**
+  Notifications about abandoned cart
+  Promotions
 
 ---
 
-## 7. Tools & Tech Stack (Optional)
+## 7. Tools & Tech Stack
 
 - **Ingestion**: Airflow, Kestra
 - **Infrastructure**: Terraform
