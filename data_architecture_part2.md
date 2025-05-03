@@ -11,7 +11,7 @@ This architecture supports tracking user behavior through a funnel of interactio
 
 ---
 
-## 2. Funnel Events Tracked
+## 2. Event Funnel Example
 
 - **View**
 - **Article Added to Cart**
@@ -49,21 +49,21 @@ Each stage generates one or more events captured through the backend and streame
 
 ### ⭐ **Gold Tables (Analytics / Data Marts)**
 
-- Fact/dimension models for analytics
+- Fact/dimension models for further analysis
 - Aggregated & formatted and in line with definitions.
 - definitions to adhere to like unique user, unique session, unique event, different event types
 - Examples:
   - `fact_user_activity`
   - `dim_user`
   - `fact_funnel_stage`
-  - `mart_conversion_rate` -- Can analyize yearly,monthly, daily conversions
-  - `mart_bacrcode_actiivity` -- Can analyize yearly,monthly, daily barcodescans
+  - `mart_conversion_rate` -- AggAggregated to yearly,monthly, daily time periods
+  - `mart_bacrcode_actiivity` -- Aggregated to yearly,monthly, daily time periods
 
 ---
 
 ## 4. Core Tables and Logical Fields
 
-All the tables can be partintion by partition date/ timestamp
+All the tables can be partitioned by partition date/timestamp
 
 ### `User`
 
@@ -106,7 +106,7 @@ All the tables can be partintion by partition date/ timestamp
 
 ---
 
-## 6. Use Cases Sample
+## 6. Eaxmple Use Cases
 
 - **Funnel analysis**
   Analyze the bounce rates per event stage
@@ -125,12 +125,12 @@ All the tables can be partintion by partition date/ timestamp
 
 ---
 
-## 7. Tools & Tech Stack
+## 7. Tools Stack
 
-- **Ingestion**: Airflow, Kestra
+- **Ingestion**: Airflow / Kestra / Snowflake
 - **Infrastructure**: Terraform
 - **Storage**: AWS S3 / GCS
-- **Processing**: dbt, Airflow
+- **Processing**: dbt / Snowflake
 - **Warehouse**: BigQuery / Snowflake / Redshift
 - **BI**: Looker, Tableau, Power BI
 
