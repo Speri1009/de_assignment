@@ -44,6 +44,5 @@ WHERE location_id = 'ab5df8c0-dfe7-4ca3-a9e4-c77f93e551a7'
 
 ## Future Scope for improvements
 
-Use storage bucket where the kestra can find external files like subdivison codes, or location_data per country
-Use git as main source
-User terraform for safer API and database connection
+Store files such as subdivision codes and country-level location data in a cloud storage bucket (e.g., S3, GCS)
+Use Terraform to securely manage API keys, database credentials, and other secrets.
