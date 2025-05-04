@@ -29,8 +29,8 @@ pgadmin: http://localhost:8082
 
 ## Location_datamart
 
-This table quickly give you holidays per location id for the last 1 year
-Example
+This table quickly gives you holidays per location id for the last 1 year.
+For example
 
 ```
 SELECT *
@@ -44,5 +44,6 @@ WHERE location_id = 'ab5df8c0-dfe7-4ca3-a9e4-c77f93e551a7'
 
 ## Future Scope for improvements
 
-Use storage bucket where the kestra can find external files like subdivion codes, or location_data per country
+Use storage bucket where the kestra can find external files like subdivison codes, or location_data per country
+Use git as main source
 User terraform for safer API and database connection

@@ -106,7 +106,7 @@ All the tables can be partitioned by partition date/timestamp
 
 ---
 
-## 6. Eaxmple Use Cases
+## 6. Example Use Cases
 
 - **Funnel analysis**
   Analyze the bounce rates per event stage
@@ -125,7 +125,7 @@ All the tables can be partitioned by partition date/timestamp
 
 ---
 
-## 7. Tools Stack
+## Tools Stack
 
 - **Ingestion**: Airflow / Kestra / Snowflake
 - **Infrastructure**: Terraform
