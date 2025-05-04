@@ -23,6 +23,9 @@ docker-compose up
 docker-compose down
 ```
 
+Folder location:
+Use your git clone location in docker-compose.yml and appication.yml before running docker commands
+
 Services:
 Kestra: http://localhost:8080
 pgadmin: http://localhost:8082
